@@ -9,11 +9,24 @@ ARG TARGETPLATFORM
 FROM n8nio/base:${NODE_VERSION} AS system-deps
 
 # ==============================================================================
+# STAGE 1.5: Build Application (vytvoření složky /compiled)
+# ==============================================================================
+FROM n8nio/base:${NODE_VERSION} AS app-builder
+
+WORKDIR /data
+
+COPY . .
+
+RUN corepack enable && corepack prepare pnpm@latest --activate && \
+    pnpm install && \
+    pnpm build
+
+# ==============================================================================
 # STAGE 2: Application Artifact Processor
 # ==============================================================================
 FROM alpine:3.22.0 AS app-artifact-processor
 
-COPY ./compiled /app/
+COPY --from=app-builder /data/compiled /app/
 
 # ==============================================================================
 # STAGE 3: Task Runner Launcher
