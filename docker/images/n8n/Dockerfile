@@ -1,7 +1,7 @@
 ARG NODE_VERSION=22
 ARG N8N_VERSION=snapshot
 ARG LAUNCHER_VERSION=1.1.3
-ARG TARGETPLATFORM
+ARG TARGETPLATFORM=linux/amd64
 
 # ==============================================================================
 # STAGE 1: System Dependencies & Base Setup
