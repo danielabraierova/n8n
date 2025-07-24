@@ -18,7 +18,7 @@ WORKDIR /data
 COPY . .
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
-RUN pnpm install
+RUN pnpm install --reporter=default
 RUN pnpm build
 
 
