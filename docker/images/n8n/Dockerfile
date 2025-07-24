@@ -17,9 +17,10 @@ WORKDIR /data
 
 COPY . .
 
-RUN corepack enable && corepack prepare pnpm@latest --activate && \
-    pnpm install && \
-    pnpm build
+RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN pnpm install
+RUN pnpm build
+
 
 # ==============================================================================
 # STAGE 2: Application Artifact Processor
