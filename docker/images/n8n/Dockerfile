@@ -19,7 +19,8 @@ COPY . .
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 #RUN pnpm install --reporter=default
-RUN pnpm install --no-frozen-lockfile
+#RUN pnpm install --no-frozen-lockfile
+RUN pnpm install --no-frozen-lockfile || (echo "===== pnpm-debug.log =====" && cat /root/.npm/_logs/*-debug-0.log && false)
 #RUN pnpm install --reporter=default || cat /data/pnpm-debug.log || true
 RUN pnpm build
 RUN ls -R /data || true
