@@ -17,10 +17,11 @@ WORKDIR /data
 
 COPY . .
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+#RUN corepack enable && corepack prepare pnpm@latest --activate
 #RUN pnpm install --reporter=default
-RUN pnpm install --reporter=default || cat /data/pnpm-debug.log || true
-RUN pnpm build
+#RUN pnpm install --reporter=default || cat /data/pnpm-debug.log || true
+#RUN pnpm build
+RUN npm install && npm run build
 
 
 
@@ -29,7 +30,8 @@ RUN pnpm build
 # ==============================================================================
 FROM alpine:3.22.0 AS app-artifact-processor
 
-COPY --from=app-builder /data/compiled /app/
+#COPY --from=app-builder /data/compiled /app/
+COPY --from=app-builder /data /app/
 
 # ==============================================================================
 # STAGE 3: Task Runner Launcher
