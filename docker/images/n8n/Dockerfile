@@ -17,11 +17,12 @@ WORKDIR /data
 
 COPY . .
 
-#RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@latest --activate
 #RUN pnpm install --reporter=default
+RUN pnpm install --no-frozen-lockfile
 #RUN pnpm install --reporter=default || cat /data/pnpm-debug.log || true
-#RUN pnpm build
-RUN npm install && npm run build
+RUN pnpm build
+RUN ls -R /data || true
 
 
 
