@@ -1,97 +1,48 @@
-ARG NODE_VERSION=22
-ARG N8N_VERSION=snapshot
-ARG LAUNCHER_VERSION=1.1.3
-ARG TARGETPLATFORM=linux/amd64
+# ----------------------
+# Stage 1: Build
+# ----------------------
+FROM node:18-alpine AS app-builder
 
-# ==============================================================================
-# STAGE 1: System Dependencies & Base Setup
-# ==============================================================================
-FROM n8nio/base:${NODE_VERSION} AS system-deps
+# Set working directory
+WORKDIR /app
 
-# ==============================================================================
-# STAGE 1.5: Build Application (vytvoření složky /compiled)
-# ==============================================================================
-FROM n8nio/base:${NODE_VERSION} AS app-builder
+# Install corepack and enable pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
-WORKDIR /data
+# Install system dependencies
+RUN apk add --no-cache python3 make g++ git
 
+# Copy source files
 COPY . .
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
-#RUN pnpm install --reporter=default
-#RUN pnpm install --no-frozen-lockfile
-RUN pnpm install --no-frozen-lockfile || (echo "===== pnpm-debug.log =====" && cat /root/.npm/_logs/*-debug-0.log && false)
-#RUN pnpm install --reporter=default || cat /data/pnpm-debug.log || true
-RUN pnpm build
-RUN ls -R /data || true
+# Install dependencies and build
+RUN pnpm install --no-frozen-lockfile && pnpm build
 
+# ----------------------
+# Stage 2: Production image
+# ----------------------
+FROM node:18-alpine AS app-artifact-processor
 
+# Set working directory
+WORKDIR /usr/local/lib/node_modules/n8n
 
-# ==============================================================================
-# STAGE 2: Application Artifact Processor
-# ==============================================================================
-FROM alpine:3.22.0 AS app-artifact-processor
+# Copy compiled app from builder stage
+COPY --from=app-builder /app /usr/local/lib/node_modules/n8n
 
-#COPY --from=app-builder /data/compiled /app/
-COPY --from=app-builder /data /app/
-
-# ==============================================================================
-# STAGE 3: Task Runner Launcher
-# ==============================================================================
-FROM alpine:3.22.0 AS launcher-downloader
-ARG TARGETPLATFORM
-ARG LAUNCHER_VERSION
-
-RUN set -e; \
-    case "$TARGETPLATFORM" in \
-        "linux/amd64") ARCH_NAME="amd64" ;; \
-        "linux/arm64") ARCH_NAME="arm64" ;; \
-        *) echo "Unsupported platform: $TARGETPLATFORM" && exit 1 ;; \
-    esac; \
-    mkdir /launcher-temp && cd /launcher-temp; \
-    wget -q "https://github.com/n8n-io/task-runner-launcher/releases/download/${LAUNCHER_VERSION}/task-runner-launcher-${LAUNCHER_VERSION}-linux-${ARCH_NAME}.tar.gz"; \
-    wget -q "https://github.com/n8n-io/task-runner-launcher/releases/download/${LAUNCHER_VERSION}/task-runner-launcher-${LAUNCHER_VERSION}-linux-${ARCH_NAME}.tar.gz.sha256"; \
-    echo "$(cat task-runner-launcher-${LAUNCHER_VERSION}-linux-${ARCH_NAME}.tar.gz.sha256) task-runner-launcher-${LAUNCHER_VERSION}-linux-${ARCH_NAME}.tar.gz" > checksum.sha256; \
-    sha256sum -c checksum.sha256; \
-    mkdir -p /launcher-bin; \
-    tar xzf task-runner-launcher-${LAUNCHER_VERSION}-linux-${ARCH_NAME}.tar.gz -C /launcher-bin; \
-    cd / && rm -rf /launcher-temp
-
-# ==============================================================================
-# STAGE 4: Final Runtime Image
-# ==============================================================================
-FROM system-deps AS runtime
-
-ARG N8N_VERSION
-ARG N8N_RELEASE_TYPE=dev
+# Set NODE_ENV to production
 ENV NODE_ENV=production
-ENV N8N_RELEASE_TYPE=${N8N_RELEASE_TYPE}
-ENV NODE_ICU_DATA=/usr/local/lib/node_modules/full-icu
-ENV SHELL=/bin/sh
 
-WORKDIR /home/node
+# Create n8n user
+RUN addgroup -S n8n && adduser -S n8n -G n8n
 
-COPY --from=app-artifact-processor /app /usr/local/lib/node_modules/n8n
-COPY --from=launcher-downloader /launcher-bin/* /usr/local/bin/
-COPY docker/images/n8n/docker-entrypoint.sh /
-COPY docker/images/n8n/n8n-task-runners.json /etc/n8n-task-runners.json
+# Change ownership of files
+RUN chown -R n8n:n8n /usr/local/lib/node_modules/n8n
 
-RUN cd /usr/local/lib/node_modules/n8n && \
-		npm rebuild sqlite3 && \
-		ln -s /usr/local/lib/node_modules/n8n/bin/n8n /usr/local/bin/n8n && \
-    mkdir -p /home/node/.n8n && \
-    chown -R node:node /home/node
+# Switch to non-root user
+USER n8n
 
-# Install npm@11.4.2 to fix brace-expansion vulnerability, remove after vulnerability is fixed in node image
-RUN npm install -g npm@11.4.2
-RUN cd /usr/local/lib/node_modules/n8n/node_modules/pdfjs-dist && npm install @napi-rs/canvas
+# Add n8n binary to PATH
+ENV PATH="/usr/local/lib/node_modules/n8n/bin:$PATH"
 
-EXPOSE 5678/tcp
-USER node
-ENTRYPOINT ["tini", "--", "/docker-entrypoint.sh"]
-
-LABEL org.opencontainers.image.title="n8n" \
-      org.opencontainers.image.description="Workflow Automation Tool" \
-      org.opencontainers.image.source="https://github.com/n8n-io/n8n" \
-      org.opencontainers.image.url="https://n8n.io" \
-      org.opencontainers.image.version=${N8N_VERSION}
+# Default command
+CMD ["n8n"]
