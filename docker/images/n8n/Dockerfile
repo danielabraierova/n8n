@@ -18,9 +18,10 @@ WORKDIR /data
 COPY . .
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
-RUN pnpm install --reporter=default
+#RUN pnpm install --reporter=default
+RUN pnpm install --reporter=default || cat /data/pnpm-debug.log || true
 RUN pnpm build
-RUN echo "🔍 Contents of /data after build:" && ls -R /data
+
 
 
 # ==============================================================================
